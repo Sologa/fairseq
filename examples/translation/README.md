@@ -50,7 +50,7 @@ TEXT=examples/translation/iwslt14.tokenized.de-en
 python preprocess.py --source-lang de --target-lang en \
     --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
     --destdir data-bin/iwslt14.tokenized.de-en \
-    --workers 8
+    --workers 8 --joined_dictionary \
 ```
 
 Next we'll train a Transformer translation model over this data:
@@ -59,6 +59,7 @@ CHECKPOINT_DIR=AT_iwslt14_de_en_baseline
 CUDA_VISIBLE_DEVICES=0 python train.py \
     data-bin/iwslt14.tokenized.de-en \
     --arch transformer_iwslt_de_en --share-decoder-input-output-embed \
+    --share-all-embeddings \
     --optimizer adam --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
     --lr 5e-4 --lr-scheduler inverse_sqrt --warmup-updates 4000 \
     --dropout 0.3 --weight-decay 0.0001 \
