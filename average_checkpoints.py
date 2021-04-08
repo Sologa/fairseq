@@ -77,7 +77,8 @@ def last_n_checkpoints(paths, n, update_based, upper_bound=None):
     assert len(paths) == 1
     path = paths[0]
     if update_based:
-        pt_regexp = re.compile(r"checkpoint_\d+_(\d+)\.pt")
+        pt_regexp = re.compile(r'checkpoint\.best_bleu_(\d+\.?\d*)\.pt')
+        # pt_regexp = re.compile(r'checkpoint_\d+_(\d+)\.pt') 
     else:
         pt_regexp = re.compile(r"checkpoint(\d+)\.pt")
     files = PathManager.ls(path)
@@ -111,7 +112,7 @@ def main():
                            help='if set, will try to find checkpoints with names checkpoint_xx.pt in the path specified by input, '
                            'and average last this many of them.')
     num_group.add_argument('--num-update-checkpoints', type=int,
-                           help='if set, will try to find checkpoints with names checkpoint_ee_xx.pt in the path specified by input, '
+                           help='if set, will try to find checkpoints with names checkpoint.jj_ee_xx.pt in the path specified by input, '
                            'and average last this many of them.')
     parser.add_argument('--checkpoint-upper-bound', type=int,
                         help='when using --num-epoch-checkpoints, this will set an upper bound on which epoch to use, '
