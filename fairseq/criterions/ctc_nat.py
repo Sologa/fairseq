@@ -23,8 +23,8 @@ from fairseq.logging.meters import safe_round
 @dataclass
 class CtcCriterionConfig(FairseqDataclass):
     zero_infinity: bool = field(
-        default=False,
-        metadata={"help": "zero inf loss when source length <= target length"},
+        default=True,
+        metadata={"help": "zero inf loss when source length <= target length. Should be set for CTC NAT since we have no idea if this condition holds."},
     )
     sentence_avg: bool = II("optimization.sentence_avg")
     post_process: str = field(
