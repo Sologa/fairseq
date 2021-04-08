@@ -28,17 +28,6 @@ except ImportError:
 
 
 def LayerNorm(normalized_shape, eps=1e-5, elementwise_affine=True, export=False):
-<<<<<<< HEAD
-    # if torch.jit.is_scripting():
-    #     export = True
-    # if not export and torch.cuda.is_available() and has_fused_layernorm:
-    #     return FusedLayerNorm(normalized_shape, eps, elementwise_affine)
-=======
-#     if torch.jit.is_scripting():
-#         export = True
-#     if not export and torch.cuda.is_available() and has_fused_layernorm:
-#         return FusedLayerNorm(normalized_shape, eps, elementwise_affine)
->>>>>>> 23aae1543ab00d50cd6d6b9aae658ac788031040
     return torch.nn.LayerNorm(normalized_shape, eps, elementwise_affine)
 
 
