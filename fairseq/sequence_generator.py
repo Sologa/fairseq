@@ -14,6 +14,8 @@ from fairseq.models import FairseqIncrementalDecoder
 from torch import Tensor
 from fairseq.ngram_repeat_block import NGramRepeatBlock
 
+import numpy as np
+
 
 class SequenceGenerator(nn.Module):
     def __init__(
@@ -243,6 +245,26 @@ class SequenceGenerator(nn.Module):
         ), "min_len cannot be larger than max_len, please adjust these!"
         # compute the encoder output for each beam
         encoder_outs = self.model.forward_encoder(net_input)
+
+        if getattr(self.model.single_model.encoder, 'ctc_layer', None) is not None:
+            ctc_out = encoder_outs[0]['ctc_out'][-1]
+
+            ctc_out = torch.log_softmax(ctc_out, -1)
+
+            ctc_out[:, :, 0][torch.where(ctc_out[:, :, 0] < np.log(0.7))] = -float('inf')
+
+            ctc_out = ctc_out.argmax(-1).transpose(0, 1)
+            not_dup = (ctc_out[:, :-1] != ctc_out[:, 1:])
+            is_dup = ~torch.cat((not_dup, ~not_dup[:, -1:]), axis=1)
+            ctc_out.masked_fill_(is_dup, 0)
+            
+            res = list()
+            for i in range(len(ctc_out)):
+                res.append([{'tokens': ctc_out[i]}])
+
+            return res
+        
+
 
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
