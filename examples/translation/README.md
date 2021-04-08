@@ -104,7 +104,7 @@ cd ../..
 
 # Binarize the dataset
 TEXT=examples/translation/wmt14_en_fr
-fairseq-preprocess \
+python preprocess.py \
     --source-lang en --target-lang fr \
     --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
     --destdir data-bin/wmt14_en_fr --thresholdtgt 0 --thresholdsrc 0 \
@@ -112,7 +112,7 @@ fairseq-preprocess \
 
 # Train the model
 mkdir -p checkpoints/fconv_wmt_en_fr
-fairseq-train \
+python train.py \
     data-bin/wmt14_en_fr \
     --arch fconv_wmt_en_fr \
     --dropout 0.1 \
@@ -123,7 +123,7 @@ fairseq-train \
     --save-dir checkpoints/fconv_wmt_en_fr
 
 # Evaluate
-fairseq-generate \
+python generate.py \
     data-bin/fconv_wmt_en_fr \
     --path checkpoints/fconv_wmt_en_fr/checkpoint_best.pt \
     --beam 5 --remove-bpe
