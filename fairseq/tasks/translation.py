@@ -28,7 +28,7 @@ from fairseq.data import (
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.tasks import FairseqTask, register_task
-
+import torch 
 
 EVAL_BLEU_ORDER = 4
 
@@ -471,7 +471,10 @@ class TranslationTask(FairseqTask):
         gen_out = self.inference_step(generator, [model], sample, prefix_tokens=None)
         hyps, refs = [], []
         for i in range(len(gen_out)):
-            hyps.append(decode(gen_out[i][0]["tokens"]))
+            res = decode(gen_out[i][0]["tokens"])
+            if len(res) == 0:
+                res += 'phucque'
+            hyps.append(res)
             refs.append(
                 decode(
                     utils.strip_pad(sample["target"][i], self.tgt_dict.pad()),
@@ -485,3 +488,73 @@ class TranslationTask(FairseqTask):
             return sacrebleu.corpus_bleu(hyps, [refs], tokenize="none")
         else:
             return sacrebleu.corpus_bleu(hyps, [refs])
+
+
+    def _mask_tokens(self, inputs):
+        masked_inputs = self._mask_tokens_by_word(inputs)
+        return masked_inputs
+
+    def _mask_tokens_by_word(self, inputs):
+        augmentation_masking_probability = 0.05
+        vocab_size = len(self.src_dict)
+        bos_index, eos_index = self.src_dict.bos(), self.src_dict.eos()
+        pad_index, unk_index = self.src_dict.pad(), self.src_dict.unk()
+
+        available_token_indices = (inputs != bos_index) & (inputs != eos_index) & (inputs != pad_index) & (inputs != unk_index)
+        random_masking_indices = torch.bernoulli(torch.full(inputs.shape, augmentation_masking_probability, device=inputs.device)).bool()
+
+        masked_inputs = inputs.clone()
+        masking_indices = random_masking_indices & available_token_indices
+        self._replace_token(masked_inputs, masking_indices, unk_index)
+
+        return masked_inputs
+
+
+    def _sample_span_length(self):
+        geometric_prob = 0.2
+        max_span_len = 10
+        span_length = min(np.random.geometric(geometric_prob) + 1, max_span_len)
+
+        return span_length
+
+    def _get_default_spans(self, batch_index, seq_length, num_spans):
+        span_length = int((seq_length - 2) / num_spans)
+        last_span_length = seq_length - 2 - (num_spans - 1) * span_length
+        span_infos = []
+        for i in range(num_spans):
+            span_info = (batch_index, 1 + i * span_length, span_length if i < num_spans - 1 else last_span_length)
+            span_infos.append(span_info)
+
+        return span_infos
+
+    def _generate_spans(self, inputs):
+        span_info_list = self._generate_spans_by_sample(inputs)
+
+        return span_info_list
+
+    def _generate_spans_by_sample(self, inputs):
+        batch_size, seq_length = inputs.size()[0], inputs.size()[1]
+
+        span_info_list = []
+        for batch_index in range(batch_size):
+            span_infos = []
+            seq_index = 1
+            max_index = seq_length - 2
+            while seq_index <= max_index:
+                span_length = self._sample_span_length()
+                span_length = min(span_length, max_index - seq_index + 1)
+
+                span_infos.append((batch_index, seq_index, span_length))
+                seq_index += span_length
+
+            augmentation_min_num_spans = 5
+            if len(span_infos) < augmentation_min_num_spans:
+                span_infos = self._get_default_spans(batch_index, seq_length, augmentation_min_num_spans)
+
+            span_info_list.extend(span_infos)
+
+        return span_info_list
+
+
+    def _replace_token(self, inputs, masking_indices, mask_index):
+        inputs[masking_indices] = mask_index    

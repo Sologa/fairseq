@@ -23,7 +23,7 @@ from fairseq.logging.meters import safe_round
 @dataclass
 class CtcCriterionConfig(FairseqDataclass):
     zero_infinity: bool = field(
-        default=False,
+        default=True,
         metadata={"help": "zero inf loss when source length <= target length"},
     )
     sentence_avg: bool = II("optimization.sentence_avg")
@@ -100,9 +100,12 @@ class CtcCriterion(FairseqCriterion):
 
     def forward(self, model, sample, reduce=True):
         ctc_out, encoder_padding_mask, dec_output = model(**sample["net_input"])
-        lprobs = model.get_normalized_probs(
-            ctc_out, log_probs=True
-        ).contiguous()  # (T, B, C) from the encoder
+
+        lprobs = list()
+        for i in range(len(ctc_out)):
+            lprobs.append(model.get_normalized_probs(
+                [ctc_out[i]], log_probs=True
+            ).contiguous())  # (T, B, C) from the encoder
 
         input_lengths = sample["net_input"]["src_lengths"]
        
@@ -121,7 +124,7 @@ class CtcCriterion(FairseqCriterion):
 
         with torch.backends.cudnn.flags(enabled=False):
             loss = F.ctc_loss(
-                lprobs,
+                lprobs[-1],
                 targets_flat,
                 input_lengths,
                 target_lengths,
@@ -129,6 +132,16 @@ class CtcCriterion(FairseqCriterion):
                 reduction="sum",
                 zero_infinity=self.zero_infinity,
             )
+            for i in range(len(lprobs)-1):
+                loss += F.ctc_loss(
+                    lprobs[i],
+                    targets_flat,
+                    input_lengths,
+                    target_lengths,
+                    blank=self.blank_idx,
+                    reduction="sum",
+                    zero_infinity=self.zero_infinity,
+                )
 
         ntokens = (
             sample["ntokens"] if "ntokens" in sample else target_lengths.sum().item()

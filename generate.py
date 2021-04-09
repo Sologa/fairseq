@@ -358,8 +358,11 @@ def _main(cfg: DictConfig, output_file):
                         )
                     if hasattr(scorer, "add_string"):
                         scorer.add_string(target_str, detok_hypo_str)
+                        
                     else:
                         scorer.add(target_tokens, hypo_tokens)
+                        print(src_str)
+                        print(target_str)
 
         wps_meter.update(num_generated_tokens)
         progress.log({"wps": round(wps_meter.avg)})

@@ -421,13 +421,13 @@ class TransformerEncoder(FairseqEncoder):
         self.upsample_coefficient = args.upsample_coefficient
 
         # upsampling the sequence length dimension
-        '''
+        
         max_seq_len = 300
-        self.upsampling_matrix = nn.Linear(max_seq_len, int(max_seq_len * self.upsample_coefficient))
-        '''
+        self.upsampling_matrix = nn.Linear(max_seq_len, int(max_seq_len * self.upsample_coefficient), bias=False)
+        
 
         # upsampling the hidden dimension
-        self.upsampling_matrix = nn.Linear(embed_dim, int(embed_dim * self.upsample_coefficient))
+        # self.upsampling_matrix = nn.Linear(embed_dim, int(embed_dim * self.upsample_coefficient))
 
         self.ctc_layer = nn.Linear(embed_dim, len(dictionary))
 
@@ -453,6 +453,11 @@ class TransformerEncoder(FairseqEncoder):
     def forward_embedding(
         self, src_tokens, token_embedding: Optional[torch.Tensor] = None
     ):
+
+        # dup token_ids
+        bs, sl = src_tokens.shape
+        src_tokens = src_tokens.unsqueeze(-1).expand(bs, sl, int(self.upsample_coefficient)).contiguous().view(bs, -1)
+
         # embed tokens and positions
         if token_embedding is None:
             token_embedding = self.embed_tokens(src_tokens)
@@ -461,9 +466,19 @@ class TransformerEncoder(FairseqEncoder):
             x = embed + self.embed_positions(src_tokens)
 
         # upsampling embeddings
+        '''
         bs, sl, hd = x.shape
         x = self.upsampling_matrix(x)
         x = x.reshape(bs, int(sl * self.upsample_coefficient), hd)
+        '''
+
+        # upsampling sequence length
+        '''
+        w = self.upsampling_matrix.weight[:int(self.upsample_coefficient*sl), :sl]
+        x = x.transpose(0, 1)
+        x = torch.einsum('rl,lbh->rbh', [w, x])
+        x = x.transpose(0, 1)
+        '''
 
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
@@ -565,12 +580,14 @@ class TransformerEncoder(FairseqEncoder):
 
 
         ctc_out = list()
-
+        
         # encoder layers
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             x = layer(
                 x, encoder_padding_mask=encoder_padding_mask if has_pads else None
             )
+            if i == (len(self.layers) // 2):
+                ctc_out.append(self.ctc_layer(x))
             if return_all_hiddens:
                 assert encoder_states is not None
                 encoder_states.append(x)
