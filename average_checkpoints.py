@@ -77,7 +77,7 @@ def last_n_checkpoints(paths, n, update_based, upper_bound=None):
     assert len(paths) == 1
     path = paths[0]
     if update_based:
-        pt_regexp = re.compile(r'checkpoint\.best_bleu_(\d+\.?\d*){}\.pt')
+        pt_regexp = re.compile(r'checkpoint\.best_bleu_(\d+\.?\d*)\.pt')
         # pt_regexp = re.compile(r'checkpoint_\d+_(\d+)\.pt') 
     else:
         pt_regexp = re.compile(r"checkpoint(\d+)\.pt")
@@ -87,7 +87,7 @@ def last_n_checkpoints(paths, n, update_based, upper_bound=None):
     for f in files:
         m = pt_regexp.fullmatch(f)
         if m is not None:
-            sort_key = int(m.group(1))
+            sort_key = float(m.group(1))
             if upper_bound is None or sort_key <= upper_bound:
                 entries.append((sort_key, m.group(0)))
     if len(entries) < n:
