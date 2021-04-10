@@ -18,6 +18,7 @@ from fairseq.dataclass import FairseqDataclass
 from fairseq.data.data_utils import post_process
 from fairseq.tasks import FairseqTask
 from fairseq.logging.meters import safe_round
+from .label_smoothed_cross_entropy import LabelSmoothedCrossEntropyCriterion
 
 
 @dataclass
@@ -27,6 +28,18 @@ class CtcCriterionConfig(FairseqDataclass):
         metadata={"help": "zero inf loss when source length <= target length. Should be set for CTC NAT since we have no idea if this condition holds."},
     )
     sentence_avg: bool = II("optimization.sentence_avg")
+
+    cutoff: bool = field(
+        default=False,
+        metadata={"help": "Apply cutoff data augmentation."},
+    )
+    cutoff_regularization_loss: float = field(
+        default=5.0,
+        metadata={
+            "help": "Cutoff regularization coefficient."
+        },
+    )
+
     post_process: str = field(
         default="letter",
         metadata={
@@ -98,8 +111,13 @@ class CtcCriterion(FairseqCriterion):
         self.zero_infinity = cfg.zero_infinity
         self.sentence_avg = cfg.sentence_avg
 
+        self.cutoff = cfg.cutoff
+        self.cutoff_regularization_loss = cfg.cutoff_regularization_loss
+
+        self.cross_entropy = LabelSmoothedCrossEntropyCriterion(task, cfg.sentence_avg, 0.1)
+
     def forward(self, model, sample, reduce=True):
-        ctc_out, encoder_padding_mask, dec_output = model(**sample["net_input"])
+        ctc_out, primary_enc_out, encoder_padding_mask, dec_output = model(**sample["net_input"])
 
         lprobs = list()
         for i in range(len(ctc_out)):
@@ -143,6 +161,44 @@ class CtcCriterion(FairseqCriterion):
                     zero_infinity=self.zero_infinity,
                 )
 
+        if self.cutoff:
+            orig_tokens = sample["net_input"]['src_tokens'].clone()
+            sample["net_input"]['src_tokens'] = self.task._mask_tokens(sample["net_input"]['src_tokens'])
+            ctc_out, secondary_enc_out, encoder_padding_mask, dec_output = model(**sample["net_input"])
+
+            lprobs = list()
+            for i in range(len(ctc_out)):
+                lprobs.append(model.get_normalized_probs(
+                    [ctc_out[i]], log_probs=True
+                ).contiguous())  # (T, B, C) from the encoder
+
+            with torch.backends.cudnn.flags(enabled=False):
+                loss += F.ctc_loss(
+                    lprobs[-1],
+                    targets_flat,
+                    input_lengths,
+                    target_lengths,
+                    blank=self.blank_idx,
+                    reduction="sum",
+                    zero_infinity=self.zero_infinity,
+                )
+                for i in range(len(lprobs)-1):
+                    loss += F.ctc_loss(
+                        lprobs[i],
+                        targets_flat,
+                        input_lengths,
+                        target_lengths,
+                        blank=self.blank_idx,
+                        reduction="sum",
+                        zero_infinity=self.zero_infinity,
+                    )
+
+            loss += self.cutoff_regularization_loss * self.compute_regularization_loss(model, primary_enc_out, secondary_enc_out, reduce=reduce)
+
+        if dec_output is not None:
+            dec_loss, nll_loss = self.cross_entropy.compute_loss(model, dec_output, sample, reduce=reduce)
+            loss += dec_loss
+
         ntokens = (
             sample["ntokens"] if "ntokens" in sample else target_lengths.sum().item()
         )
@@ -156,6 +212,25 @@ class CtcCriterion(FairseqCriterion):
         }
 
         return loss, sample_size, logging_output
+
+    def compute_regularization_loss(self, model, primary_net_output, secondary_net_output, pad_mask=None, reduce=True):
+        mean_net_output = (primary_net_output[0] + secondary_net_output[0]) / 2
+        m = model.get_normalized_probs((mean_net_output,), log_probs=False)
+        p = model.get_normalized_probs(primary_net_output, log_probs=True)
+        q = model.get_normalized_probs(secondary_net_output, log_probs=True)
+
+        primary_loss = F.kl_div(p, m, reduction='none')
+        secondary_loss = F.kl_div(q, m, reduction='none')
+        if pad_mask is not None:
+            primary_loss.masked_fill_(pad_mask, 0.)
+            secondary_loss.masked_fill_(pad_mask, 0.)
+
+        if reduce:
+            primary_loss = primary_loss.sum()
+            secondary_loss = secondary_loss.sum()
+
+        loss = (primary_loss + secondary_loss) / 2
+        return loss
 
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:

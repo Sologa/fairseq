@@ -184,6 +184,10 @@ def _main(cfg: DictConfig, output_file):
     num_sentences = 0
     has_target = True
     wps_meter = TimeMeter()
+
+    train_src = open('distilled-data/train.src', 'w')
+    train_tgt = open('distilled-data/train.tgt', 'w')
+
     for sample in progress:
         sample = utils.move_to_cuda(sample) if use_cuda else sample
         if "net_input" not in sample:
@@ -260,8 +264,6 @@ def _main(cfg: DictConfig, output_file):
 
             # Process top predictions
             for j, hypo in enumerate(hypos[i][: cfg.generation.nbest]):
-                if hypo.get("alignment", None) is None:
-                    hypo["alignment"] = torch.Tensor([])
                 hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
                     hypo_tokens=hypo["tokens"].int().cpu(),
                     src_str=src_str,
@@ -363,8 +365,8 @@ def _main(cfg: DictConfig, output_file):
                         
                     else:
                         scorer.add(target_tokens, hypo_tokens)
-                        # print(src_str)
-                        # print(target_str)
+                        train_src.write('{}\n'.format(src_str))
+                        train_tgt.write('{}\n'.format(detok_hypo_str))
 
         wps_meter.update(num_generated_tokens)
         progress.log({"wps": round(wps_meter.avg)})

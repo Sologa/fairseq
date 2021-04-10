@@ -15,7 +15,7 @@ python train.py \
     --encoder-attention-heads 8 \
     --encoder-embed-dim 512 \
     --decoder-embed-dim 512 \
-    --max-tokens 6000 \
+    --max-tokens 2500 \
     --max-update 2000000 \
     --eval-bleu \
     --eval-bleu-args '{"beam": 5, "max_len_a": 1.2, "max_len_b": 10}' \

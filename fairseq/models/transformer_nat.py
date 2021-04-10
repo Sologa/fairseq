@@ -198,8 +198,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
 
 
         parser.add_argument('--upsample-coefficient', type=float, metavar='D', default=1.0,
-                            help='CTC upsampling coefficient.')
-        
+                            help='CTC upsampling coefficient.') 
+        parser.add_argument('--intermediate', default=False, action='store_true',
+                            help='intermediate CTC loss')
 
         # args for Fully Sharded Data Parallel (FSDP) training
         parser.add_argument(
@@ -320,9 +321,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
         )
 
         
-        return encoder_out['ctc_out'], encoder_out['encoder_padding_mask'][0], None
+        return encoder_out['ctc_out'], encoder_out["encoder_out"], encoder_out['encoder_padding_mask'][0], None
 
-        '''
         decoder_out = self.decoder(
             prev_output_tokens,
             encoder_out=encoder_out,
@@ -332,8 +332,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
             src_lengths=src_lengths,
             return_all_hiddens=return_all_hiddens,
         )
-        return decoder_out
-        '''
+        # return decoder_out
+        return encoder_out['ctc_out'], encoder_out["encoder_out"], encoder_out['encoder_padding_mask'][0], decoder_out
 
     # Since get_normalized_probs is in the Fairseq Model which is not scriptable,
     # I rewrite the get_normalized_probs from Base Class to call the
@@ -430,6 +430,7 @@ class TransformerEncoder(FairseqEncoder):
         # self.upsampling_matrix = nn.Linear(embed_dim, int(embed_dim * self.upsample_coefficient))
 
         self.ctc_layer = nn.Linear(embed_dim, len(dictionary))
+        self.intermediate = args.intermediate
 
         nn.init.xavier_normal_(self.upsampling_matrix.weight)
         # init self.ctc_layer ?
@@ -586,7 +587,7 @@ class TransformerEncoder(FairseqEncoder):
             x = layer(
                 x, encoder_padding_mask=encoder_padding_mask if has_pads else None
             )
-            if i == (len(self.layers) // 2):
+            if i == (len(self.layers) // 2) and self.intermediate:
                 ctc_out.append(self.ctc_layer(x))
             if return_all_hiddens:
                 assert encoder_states is not None
