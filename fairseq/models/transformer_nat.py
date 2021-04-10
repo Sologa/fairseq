@@ -201,6 +201,10 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='CTC upsampling coefficient.') 
         parser.add_argument('--intermediate', default=False, action='store_true',
                             help='intermediate CTC loss')
+        parser.add_argument('--joint-train', default=False, action='store_true',
+                            help='join training with decoder')
+        parser.add_argument('--encoder-cross-layer-weight-sharing', default=False, action='store_true',
+                            help='sharing encoder layer weights')
 
         # args for Fully Sharded Data Parallel (FSDP) training
         parser.add_argument(
@@ -321,7 +325,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
         )
 
         
-        return encoder_out['ctc_out'], encoder_out["encoder_out"], encoder_out['encoder_padding_mask'][0], None
+        if not self.args.joint_train:
+            return encoder_out['ctc_out'], encoder_out["encoder_out"], encoder_out['encoder_padding_mask'][0], None
 
         decoder_out = self.decoder(
             prev_output_tokens,
@@ -407,9 +412,15 @@ class TransformerEncoder(FairseqEncoder):
             self.layers = LayerDropModuleList(p=self.encoder_layerdrop)
         else:
             self.layers = nn.ModuleList([])
-        self.layers.extend(
-            [self.build_encoder_layer(args) for i in range(args.encoder_layers)]
-        )
+
+        if not args.encoder_cross_layer_weight_sharing:
+            self.layers.extend(
+                [self.build_encoder_layer(args) for i in range(args.encoder_layers)]
+            )
+        else:
+            layer = self.build_encoder_layer(args)
+            self.layers.extend([layer for i in range(args.encoder_layers)])
+
         self.num_layers = len(self.layers)
 
         if args.encoder_normalize_before:

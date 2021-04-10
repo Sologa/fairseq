@@ -1,4 +1,4 @@
-# warmup 4000 is better than warmup 10000 ?
+
 python train.py \
     ../data-bin/iwslt14.tokenized.de-en-distilled-cutoff \
     --arch transformer_enc_only --share-decoder-input-output-embed \
@@ -11,13 +11,13 @@ python train.py \
     --criterion ctc_nat \
     --upsample-coefficient 3 \
     --share-all-embeddings \
-    --encoder-layers 12 \
+    --encoder-layers 6 \
     --decoder-layers 1 \
     --encoder-attention-heads 8 \
     --encoder-embed-dim 512 \
-    --encoder-ffn-embed-dim 2048 \
+    --decoder-embed-dim 2048 \
     --decoder-embed-dim 512 \
-    --max-tokens 2500 \
+    --max-tokens 6500 \
     --max-epoch 100 \
     --eval-bleu \
     --eval-bleu-args '{"beam": 5, "max_len_a": 1.2, "max_len_b": 10}' \
@@ -26,7 +26,6 @@ python train.py \
     --eval-tokenized-bleu \
     --best-checkpoint-metric bleu --maximize-best-checkpoint-metric \
     --keep-best-checkpoints 5 \
-    --save-dir checkpoints_dir/ctc-intermediate_loss-cutoff-ffn_2048 \
-    --cutoff \
-    --intermediate \
+    --save-dir checkpoints_dir/ctc-baseline-layer_sharing \
     --task translation \
+    --encoder-cross-layer-weight-sharing \

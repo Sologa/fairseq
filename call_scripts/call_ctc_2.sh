@@ -3,7 +3,7 @@ python train.py \
     ../data-bin/iwslt14.tokenized.de-en-distilled-cutoff \
     --arch transformer_enc_only --share-decoder-input-output-embed \
     --optimizer adam --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
-    --lr 1e-3 --lr-scheduler inverse_sqrt --warmup-updates 4000 \
+    --lr 5e-4 --lr-scheduler inverse_sqrt --warmup-updates 4000 \
     --dropout 0.3 --weight-decay 0.0001 \
     --adam-eps 1e-9 \
     --attention-dropout 0.1 \
@@ -13,7 +13,7 @@ python train.py \
     --share-all-embeddings \
     --encoder-layers 12 \
     --decoder-layers 1 \
-    --encoder-attention-heads 8 \
+    --encoder-attention-heads 4 \
     --encoder-embed-dim 512 \
     --decoder-embed-dim 1024 \
     --decoder-embed-dim 512 \
@@ -26,5 +26,5 @@ python train.py \
     --eval-tokenized-bleu \
     --best-checkpoint-metric bleu --maximize-best-checkpoint-metric \
     --keep-best-checkpoints 5 \
-    --save-dir checkpoints_dir/ctc-baseline-ffn_1024-head_8 \
+    --save-dir checkpoints_dir/ctc-baseline-orig_iwslt_setup \
     --task translation \
