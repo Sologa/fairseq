@@ -15,7 +15,7 @@ python train.py \
     --decoder-layers 1 \
     --encoder-attention-heads 8 \
     --encoder-embed-dim 512 \
-    --decoder-embed-dim 2048 \
+    --encoder-ffn-embed-dim 2048 \
     --decoder-embed-dim 512 \
     --max-tokens 6500 \
     --max-epoch 100 \

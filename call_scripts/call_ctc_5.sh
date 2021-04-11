@@ -1,4 +1,5 @@
 # warmup 4000 is better than warmup 10000 ?
+# 34.38
 python train.py \
     ../data-bin/iwslt14.tokenized.de-en-distilled-cutoff \
     --arch transformer_enc_only --share-decoder-input-output-embed \
